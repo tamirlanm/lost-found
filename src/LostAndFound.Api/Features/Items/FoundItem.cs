@@ -9,7 +9,7 @@ public class FoundItem
     public ItemCategory Category { get; private set; }
     public string Cabinet { get; private set; } = string.Empty;
     public FoundItemStatus Status { get; private set; }
-    public DateTimeOffset FoundStatus { get; private set; }
+    public DateTimeOffset FoundAt { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public string? PhotoKey {get;set;}
 
@@ -22,7 +22,8 @@ public class FoundItem
         string description,
         ItemCategory category,
         string cabinet,
-        DateTime foundStatus,
+        FoundItemStatus status,
+        DateTime foundAt,
         // DateTime createdAt,
         string? photoKey)
     {
@@ -32,7 +33,8 @@ public class FoundItem
         Description = description;
         Category = category;
         Cabinet = cabinet;
-        FoundStatus = foundStatus.ToUniversalTime();
+        Status = FoundItemStatus.Open;
+        FoundAt = foundAt.ToUniversalTime();
         CreatedAt = DateTimeOffset.UtcNow;
         PhotoKey = photoKey;
     }
