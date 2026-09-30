@@ -8,9 +8,9 @@ using LostAndFound.Api.Features.Items;
 namespace LostAndFound.Api.Features.Items.Create;
 
 [ApiController]
-[Microsoft.AspNetCore.Components.Route("api/items")]
+[Route("api/items")]
 [Authorize]
-[RequiredScope("access_sa_user")]
+[RequiredScope("access_as_user")]
 public sealed class CreateFoundItemController(AppDbContext db) : ControllerBase
 {
     [HttpPost]

@@ -38,4 +38,9 @@ public class FoundItem
         CreatedAt = DateTimeOffset.UtcNow;
         PhotoKey = photoKey;
     }
+
+    public void MarkReturned()
+    {
+        Status = FoundItemStatus.Returned;
+    }
 }
