@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Identity.Web.Resource;
 using LostAndFound.Api.Features.Chat;
+using LostAndFound.Api.Features.Items;
+using LostAndFound.Api.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace LostAndFound.Api.Features.Chat.Messages;
 
@@ -11,7 +14,7 @@ namespace LostAndFound.Api.Features.Chat.Messages;
 [Route("api/conversations/{conversationId:guid}/messages")]
 [Authorize]
 [RequiredScope("access_as_user")]
-public sealed class ConversationMessagesController(ChatMessageService messages, ChatEvents events) : ControllerBase
+public sealed class ConversationMessagesController(ChatMessageService messages, ChatEvents events, AppDbContext db, ChatDbContext chatDb) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> Send(Guid conversationId, [FromBody] SendChatMessageRequest request, CancellationToken cancellationToken)
@@ -40,6 +43,21 @@ public sealed class ConversationMessagesController(ChatMessageService messages, 
             return NotFound();
         }
 
+        // A returned item closes its chats: history stays readable, new messages are refused.
+        var itemStatus = await db.FoundItems
+            .AsNoTracking()
+            .Where(x => x.Id == conversation.FoundItemId)
+            .Select(x => (FoundItemStatus?)x.Status)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (itemStatus != FoundItemStatus.Open)
+        {
+            return Conflict(new
+            {
+                message = "Вещь уже возвращена, чат закрыт."
+            });
+        }
+
         var result = await messages.SaveAsync(conversationId, userId, request.ClientMessageId, request.Text!, cancellationToken);
 
         if (result.Conflict)
@@ -51,6 +69,12 @@ public sealed class ConversationMessagesController(ChatMessageService messages, 
         }
         if (result.Created)
         {
+            // A new message brings a deleted chat back for both people.
+            await chatDb.Conversations.UpdateOneAsync(
+                MongoDB.Driver.Builders<Conversation>.Filter.Eq(x => x.Id, conversationId),
+                MongoDB.Driver.Builders<Conversation>.Update.Set(x => x.HiddenFor, new List<string>()),
+                cancellationToken: cancellationToken);
+
             events.Publish(conversationId, new
             {
                 type = "message",

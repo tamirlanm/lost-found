@@ -1,5 +1,5 @@
-import { Component, computed, effect, inject, input, untracked } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService, initialsOf } from '../../core/auth/auth.service';
 import { AlertsStore } from '../../core/state/alerts.store';
 import { ChatStore } from '../../core/state/chat.store';
@@ -22,6 +22,14 @@ import { ChatThread } from '../../shared/ui/chat-thread';
             {{ item()?.title ?? 'Item' }} · Nº {{ thread.itemNo || '…' }}
           </a>
         </div>
+        <button
+          type="button"
+          class="delete"
+          [disabled]="deleting()"
+          (click)="deleteChat(thread.id)"
+        >
+          Delete chat
+        </button>
       </header>
 
       @if (me(); as me) {
@@ -30,6 +38,9 @@ import { ChatThread } from '../../shared/ui/chat-thread';
           [messages]="thread.messages"
           [meId]="me.id"
           [canWrite]="item()?.status === 'open'"
+          [closedText]="
+            item()?.status === 'returned' ? 'This item was returned. The chat is closed.' : null
+          "
           [placeholder]="'Write to ' + (other()?.name ?? 'them') + '…'"
           emptyText="Say hi, and describe something only the owner would know."
           [actionLabel]="canMarkReturned() ? 'Mark as returned' : null"
@@ -50,6 +61,7 @@ export class ChatPage {
   private readonly itemsStore = inject(ItemsStore);
   private readonly alerts = inject(AlertsStore);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   /** Route param :id */
   readonly id = input.required<string>();
@@ -79,7 +91,7 @@ export class ChatPage {
     // The listing gives the title and whether it's still open (can write).
     effect(() => {
       const no = this.thread()?.itemNo;
-      if (no) untracked(() => void this.itemsStore.load(no).catch(() => undefined));
+      if (no) untracked(() => void this.itemsStore.reload(no).catch(() => undefined));
     });
 
     // Keep the thread marked read while it's open, even as new messages arrive.
@@ -107,6 +119,21 @@ export class ChatPage {
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Could not mark it as returned.');
       }
+    }
+  }
+
+  protected readonly deleting = signal(false);
+
+  protected async deleteChat(id: string): Promise<void> {
+    if (!confirm('Delete this chat from your list? The other person will still see it.')) return;
+    this.deleting.set(true);
+    try {
+      await this.chat.remove(id);
+      await this.router.navigate(['/chats']);
+    } catch {
+      alert('Could not delete the chat. Please try again.');
+    } finally {
+      this.deleting.set(false);
     }
   }
 }
